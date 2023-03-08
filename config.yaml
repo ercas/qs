@@ -1,0 +1,37 @@
+path: qs.csv
+questions:
+- id: mood
+  prompt: How did you feel today?
+  frequency: daily
+  type: choice
+  choices:
+  - value: 1
+    label: very bad
+  - value: 2
+    label: bad
+  - value: 3
+    label: neutral
+  - value: 4
+    label: good
+  - value: 5
+    label: very good
+- id: mindful
+  prompt: Did you feel mindful today?
+  frequency: daily
+  type: yn
+- id: outside
+  prompt: Did you go outside today?
+  frequency: daily
+  type: yn
+- id: bike
+  prompt: Did you bike today?
+  frequency: weekdays
+  type: yn
+- id: exercise
+  prompt: Did you exercise today?
+  frequency: daily
+  type: yn
+- id: research.pages.read
+  prompt: How many research papers did you read today?
+  frequency: daily
+  type: int
