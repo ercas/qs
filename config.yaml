@@ -1,5 +1,8 @@
 path: qs.csv
 questions:
+
+# mental state
+
 - id: mood
   prompt: How did you feel today?
   frequency: daily
@@ -15,23 +18,53 @@ questions:
     label: good
   - value: 5
     label: very good
+
 - id: mindful
   prompt: Did you feel mindful today?
   frequency: daily
   type: yn
+
+# physical activity
+
 - id: outside
   prompt: Did you go outside today?
   frequency: daily
   type: yn
+
 - id: bike
   prompt: Did you bike today?
   frequency: weekdays
   type: yn
+
 - id: exercise
   prompt: Did you exercise today?
   frequency: daily
   type: yn
-- id: research.pages.read
+
+# health
+
+- id: floss
+  prompt: Did you floss today?
+  frequency: daily
+  type: yn
+
+- id: sleep.duration.seconds
+  prompt: How long did you sleep last night?
+  frequency: daily
+  type: duration
+
+- id: water.milliliters
+  prompt: |-
+    About how much water did you drink today?
+    (Glass bottle ~= 500 mL; drinking glass ~= 500 mL)
+  frequency: daily
+  type: quantity
+  unit: mL
+  decimals: 3
+
+# work
+
+- id: research.papers.read
   prompt: How many research papers did you read today?
   frequency: daily
   type: int
