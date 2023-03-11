@@ -236,6 +236,7 @@ def ask_questions(questions: list[dict[str, typing.Any]],
         # TODO: more dynamic frequency parsing
 
         if question["frequency"] == "weekdays" and questions_date.weekday() > 4:
+            print("Skipping (reason: not a weekday)\n")
             continue
 
         # TODO: more dynamic question type parsing
@@ -284,7 +285,7 @@ def ask_questions(questions: list[dict[str, typing.Any]],
                 )
             ))
 
-        print("\n")
+        print("")
 
     return responses
 
