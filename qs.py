@@ -13,11 +13,11 @@ import pytimeparse.timeparse
 import recurrent
 import yaml
 
+SKIP_STRING = "skip"
+
 unit_registry = pint.UnitRegistry()
 recurring_event_parser = recurrent.event_parser.RecurringEvent()
 
-
-# %%
 
 @dataclasses.dataclass
 class Choice:
@@ -40,12 +40,37 @@ class NormalizationResults:
 def date_range(first_date: datetime.datetime,
                last_date: datetime.datetime,
                start_with_first: bool = True
-               ) -> typing.Generator[datetime.datetime, None, None]:
+               ) -> typing.Generator[datetime.date, None, None]:
+    """ Yield a generator corresponding to a range of dates.
+
+    Args:
+        first_date: The date that the range should start with.
+        last_date: The date that the range should end with.
+        start_with_first: If True, start with `first_date` and do not include
+            `last_date`. If False, start 1 day after `first_date` and include
+            `last_date`.
+
+    Returns: A range of dates between `first_date` and `last_date`, which
+        includes _either_ `first_date` or `last_date` - `start_with_first`
+        affects which is included.
+    """
     for i in range((last_date - first_date).days):
-        yield first_date + datetime.timedelta(days=i + (not start_with_first))
+        yield first_date.date() + datetime.timedelta(days=i + (not start_with_first))
 
 
-def days_to_recurring_event(frequency_string: str, dt: datetime.datetime) -> int:
+def days_to_recurring_event(frequency_string: str, date: datetime.date) -> int:
+    """ Calculate the number of days to a recurring event.
+
+    Args:
+        frequency_string: A string describing how often the recurring event
+            occurs. A list of example inputs can be found at the `recurrent`
+            GitHub page: https://github.com/kvh/recurrent#recurring-events
+        date: The date from which the next recurring event will be calculated.
+
+    Returns: The number of days from `date` to the next recurring event defined
+        by `frequency_string`.
+    """
+    dt = datetime.datetime.combine(date, datetime.time())
     rrule_string = recurring_event_parser.parse(frequency_string)
     if not rrule_string:
         raise ValueError('Could not parse: "{}"'.format(frequency_string))
@@ -58,8 +83,21 @@ def days_to_recurring_event(frequency_string: str, dt: datetime.datetime) -> int
 def ask_type(prompt: str,
              type_: type,
              skippable: bool = True):
+    """ Ask a question, expecting a specific type.
+
+    Args:
+        prompt: The prompt to display.
+        type_: The type that the input is expected to adhere to. This should be
+            a function that takes a string input and returns the representation
+            of that string in the expected type, if possible.
+        skippable: If True, return None if the user responds with `SKIP_STRING`.
+
+    Returns: An object produced by feeding the response to `prompt` into the
+    `type_` function, if possible, or None if the user responded with
+    `SKIP_STRING`.
+    """
     response = input(prompt + "\n{}> ".format(type_.__name__))
-    if skippable and response == "skip":
+    if skippable and response == SKIP_STRING:
         return
     try:
         return type_(response)
@@ -71,13 +109,24 @@ def ask_choice(prompt: str,
                choices: typing.Iterable[Choice],
                skippable: bool = True
                ) -> typing.Optional[Choice]:
+    """ Ask a multiple-choice question.
+
+    Args:
+        prompt: The prompt to display.
+        choices: An iterable yielding `Choice` objects that the user can
+            select from.
+        skippable: If True, return None if the user responds with `SKIP_STRING`.
+
+    Returns: The value of the selected `Choice`, or None if the user responded
+    with `SKIP_STRING`.
+    """
     if type(choices) is not list:
         choices = list(choices)
     response = input(prompt +
                      "\n" +
                      "\n".join([str(choice.value) + ") " + choice.label for choice in choices]) +
                      "\nchoice> ")
-    if skippable and response == "skip":
+    if skippable and response == SKIP_STRING:
         return
     for choice in choices:
         try:
@@ -92,13 +141,23 @@ def ask_yn(prompt: str,
            default: typing.Optional[str] = None,
            skippable: bool = True
            ) -> typing.Optional[str]:
+    """ Ask a yes/no question.
+
+    Args:
+        prompt: The prompt to display.
+        default: The default choice, if any. If the user presses Enter without
+            entering any text, then the default choice is returned.
+        skippable: If True, return None if the user responds with `SKIP_STRING`.
+
+    Returns: "y" or "n", or None if the user responded with `SKIP_STRING`.
+    """
     if default:
         if default not in "yn":
             raise ValueError('Default "{}" not in ["y", "n"]'.format(default))
         response = input(prompt + "\ny/n> ".replace(default, default.upper()))
     else:
         response = input(prompt + "\ny/n> ")
-    if skippable and response == "skip":
+    if skippable and response == SKIP_STRING:
         return
     elif response == "y":
         return "y"
@@ -112,8 +171,17 @@ def ask_yn(prompt: str,
 def ask_date(prompt: str,
              skippable: bool = True
              ) -> typing.Optional[datetime.datetime]:
+    """ Ask for a date.
+
+    Args:
+        prompt: The prompt to display.
+        skippable: If True, return None if the user responds with `SKIP_STRING`.
+
+    Returns: A `datetime.datetime`, or None if the user responded with
+    `SKIP_STRING`.
+    """
     response = input(prompt + "\ndateutil.parser.parse> ")
-    if skippable and response == "skip":
+    if skippable and response == SKIP_STRING:
         return
     try:
         return dateutil.parser.parse(response)
@@ -121,16 +189,25 @@ def ask_date(prompt: str,
         return ask_date(prompt=prompt, skippable=skippable)
 
 
-def ask_duration(prompt: str,
-                 skippable: bool = True
-                 ) -> typing.Optional[int]:
+def ask_duration_seconds(prompt: str,
+                         skippable: bool = True
+                         ) -> typing.Optional[int]:
+    """ Ask for a duration, in seconds.
+
+    Args:
+        prompt: The prompt to display.
+        skippable: If True, return None if the user responds with `SKIP_STRING`.
+
+    Returns: An integer corresponding to the number of seconds, or None if the
+    user responded with `SKIP_STRING`.
+    """
     response = input(prompt + "\npytimeparse.timeparse.timeparse> ")
-    if skippable and response == "skip":
+    if skippable and response == SKIP_STRING:
         return
     duration = pytimeparse.timeparse.timeparse(response)
     if duration:
         return duration
-    return ask_duration(prompt=prompt, skippable=skippable)
+    return ask_duration_seconds(prompt=prompt, skippable=skippable)
 
 
 def ask_quantity(prompt: str,
@@ -138,8 +215,22 @@ def ask_quantity(prompt: str,
                  skippable: bool = True,
                  decimals: float = 2
                  ) -> typing.Optional[typing.Union[int, float]]:
+    """ Ask for a quantity.
+
+    Args:
+        prompt: The prompt to display.
+        unit: The units that the response will be converted to. Must be parsable
+            by `pint`. A full list of valid units is available here:
+            https://github.com/hgrecco/pint/blob/master/pint/default_en.txt
+        decimals: The number of decimals that the parsed response will be
+            returned in.
+        skippable: If True, return None if the user responds with `SKIP_STRING`.
+
+    Returns: An integer or float corresponding to the response in units of
+    `unit`, or None if the user responded with `SKIP_STRING`.
+    """
     response = input(prompt + "\npint.util.Quantity.to({})> ".format(unit))
-    if skippable and response == "skip":
+    if skippable and response == SKIP_STRING:
         return
     try:
         parsed = unit_registry(response)
@@ -150,14 +241,35 @@ def ask_quantity(prompt: str,
         return ask_quantity(prompt=prompt, unit=unit, skippable=skippable)
 
 
-# %%
-
 # TODO: can restructure this as a class that wraps around DictWriter and
 # automatically applies filler. negates the need for NormalizationResults
 def normalize_csv(csv_path: str,
                   fieldnames: typing.Iterable[str],
                   prompt: bool = False
                   ) -> typing.Optional[NormalizationResults]:
+    """ Normalize a CSV file to match a given `fieldnames` spec.
+
+    This function will guarantee that both the original fields from the existing
+    CSV file, if any, and all the fields in the `fieldnames` will be present in
+    a CSV file at the existing path. In other words, if a CSV file exists at
+    `csv_path` _and_ the existing and desired fields do not match, then the file
+    at `csv_path` will be overwritten to include the set union of both sets of
+    fields.
+
+    If a discrepancy is found and normalization is required, all fields that are
+    in `fieldnames` but not in the original CSV file, if any, will be filled in
+    with None.
+
+    Args:
+        csv_path: The CSV file to normalize. Must be uncompressed.
+        fieldnames: A list of strings corresponding to the fieldnames that are
+            expected to be present in the CSV file.
+        prompt: If True, ask the user for permission before overwriting an
+            existing CSV file.
+
+    Returns: A `NormalizationResults` object, unless normalization was required
+        and the user denied permission.
+    """
     # Can optimize this using OrderedDict or similar, but not expecting there
     # to be a very large number of fieldnames or for this to run very often
 
@@ -220,10 +332,20 @@ def normalize_csv(csv_path: str,
 
 
 def ask_questions(questions: list[dict[str, typing.Any]],
-                  questions_date: typing.Optional[datetime.datetime] = None
+                  questions_date: typing.Optional[datetime.date] = None
                   ) -> list[Response]:
-    now = datetime.datetime.now()
-    now_ymd = now.date().isoformat()
+    """ Ask a set of questions.
+
+    Args:
+        questions: A list of questions to ask. TODO: make a questions spec
+        questions_date: The date that responses will be written down for. This
+            argument is necessary because a user may be filling in responses for
+            a day in the past.
+
+    Returns: A list of `Response` objects.
+    """
+    now = datetime.datetime.now().date()
+    now_ymd = now.isoformat()
 
     if not questions_date:
         questions_date = now
@@ -236,7 +358,7 @@ def ask_questions(questions: list[dict[str, typing.Any]],
     else:
         print(questions_date.strftime("### Asking questions for %Y-%m-%d (%A).\n"))
 
-    questions_ymd = questions_date.date().isoformat()
+    questions_ymd = questions_date.isoformat()
 
     responses: list[Response] = [
         Response(id="date", value=questions_ymd),
@@ -289,7 +411,7 @@ def ask_questions(questions: list[dict[str, typing.Any]],
         elif question["type"] == "duration":
             responses.append(Response(
                 id=question["id"],
-                value=ask_duration(prompt=question["prompt"])
+                value=ask_duration_seconds(prompt=question["prompt"])
             ))
 
         elif question["type"] == "quantity":
@@ -338,12 +460,12 @@ def main():
         print("Will ask questions for {} dates: {}".format(
             len(dates_to_ask),
             ", ".join([
-                dt.date().isoformat()
-                for dt in dates_to_ask
+                date.isoformat()
+                for date in dates_to_ask
             ])
         ))
 
-    print('Type "skip" at any time to skip a question, or ^C to quit.\n')
+    print('Type "{}" at any time to skip a question, or ^C to quit.\n'.format(SKIP_STRING))
 
     for date in dates_to_ask:
         try:
