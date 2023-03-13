@@ -7,11 +7,14 @@ import os
 import typing
 
 import dateutil.parser
+import dateutil.rrule
 import pint.errors
 import pytimeparse.timeparse
+import recurrent
 import yaml
 
 unit_registry = pint.UnitRegistry()
+recurring_event_parser = recurrent.event_parser.RecurringEvent()
 
 
 # %%
@@ -40,6 +43,17 @@ def date_range(first_date: datetime.datetime,
                ) -> typing.Generator[datetime.datetime, None, None]:
     for i in range((last_date - first_date).days):
         yield first_date + datetime.timedelta(days=i + (not start_with_first))
+
+
+def days_to_recurring_event(frequency_string: str, dt: datetime.datetime) -> int:
+    rrule_string = recurring_event_parser.parse(frequency_string)
+    if not rrule_string:
+        raise ValueError('Could not parse: "{}"'.format(frequency_string))
+    if type(rrule_string) is datetime.datetime:
+        raise ValueError('Not recurring: "{}"'.format(frequency_string))
+    next_valid_dt = next(iter(dateutil.rrule.rrulestr(rrule_string, dtstart=dt)))
+    return (next_valid_dt.date() - dt.date()).days
+
 
 def ask_type(prompt: str,
              type_: type,
@@ -209,7 +223,7 @@ def ask_questions(questions: list[dict[str, typing.Any]],
                   questions_date: typing.Optional[datetime.datetime] = None
                   ) -> list[Response]:
     now = datetime.datetime.now()
-    now_ymd = now.strftime("%Y-%m-%d")
+    now_ymd = now.date().isoformat()
 
     if not questions_date:
         questions_date = now
@@ -222,7 +236,7 @@ def ask_questions(questions: list[dict[str, typing.Any]],
     else:
         print(questions_date.strftime("### Asking questions for %Y-%m-%d (%A).\n"))
 
-    questions_ymd = questions_date.strftime("%Y-%m-%d")
+    questions_ymd = questions_date.date().isoformat()
 
     responses: list[Response] = [
         Response(id="date", value=questions_ymd),
@@ -232,11 +246,14 @@ def ask_questions(questions: list[dict[str, typing.Any]],
     for i, question in enumerate(questions):
 
         print("({}/{})".format(i + 1, len(questions)), end=" ")
+        days_until_next_ask = days_to_recurring_event(question["frequency"], questions_date)
 
-        # TODO: more dynamic frequency parsing
-
-        if question["frequency"] == "weekdays" and questions_date.weekday() > 4:
-            print("Skipping (reason: not a weekday)\n")
+        if days_until_next_ask > 0:
+            print('Skipping; will ask in {} day{} (frequency rule: "{}")\n'.format(
+                days_until_next_ask,
+                "" if days_until_next_ask == 1 else "s",
+                question["frequency"]
+            ))
             continue
 
         # TODO: more dynamic question type parsing
@@ -321,8 +338,8 @@ def main():
         print("Will ask questions for {} dates: {}".format(
             len(dates_to_ask),
             ", ".join([
-                date.strftime("%Y-%m-%d")
-                for date in dates_to_ask
+                dt.date().isoformat()
+                for dt in dates_to_ask
             ])
         ))
 
